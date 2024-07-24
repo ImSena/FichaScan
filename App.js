@@ -1,19 +1,21 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import React, { useState } from 'react';
-import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { ActivityIndicator, Button, StyleSheet, Text, TouchableOpacity, View, Modal, Image} from 'react-native';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function App() {
-  const [facing, setFacing] = useState('back');
+  const [isLoading, setIsloading] = useState(false);
+  const camRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [showCamera, setShowCamera] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(false);
+  const [open, setOpen] = useState(false)
 
   if (!permission) {
-    // Camera permissions are still loading.
     return <View />;
   }
 
   if (!permission.granted) {
-    // Camera permissions are not granted yet.
     return (
       <View style={styles.container}>
         <Text style={styles.text}>We need your permission to show the camera</Text>
@@ -22,9 +24,6 @@ export default function App() {
     );
   }
 
-  function toggleCameraFacing() {
-    setFacing(current => (current === 'back' ? 'front' : 'back'));
-  }
 
   const handleOpenCamera = () => {
     setShowCamera(true);
@@ -33,6 +32,23 @@ export default function App() {
   const handleBackToHome = () => {
     setShowCamera(false);
   };
+
+  const takePicture = async()=>{
+    if(camRef){
+      setIsloading(true);
+      try{
+        const data = await camRef.current.takePictureAsync();
+        setCapturedPhoto(data.uri)
+        setOpen(true);
+        console.log(data.uri);
+      }catch(error){
+        console.error(error);
+      }finally{
+        setIsloading(false);
+      }
+      
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -47,23 +63,77 @@ export default function App() {
         </View>
       ) : (
         <View style={styles.cameraContainer}>
-          <CameraView style={styles.camera} facing={facing}>
+           {
+                isLoading && (
+                  <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size={'large'} color={"#fff"}/>
+                  </View>
+                )
+              }
+          <CameraView style={[styles.camera, styles.containerPhoto]} ref={camRef}>
+          </CameraView>
+           
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-                <Text style={styles.text}>Flip Camera</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={[styles.button, styles.backButton]} onPress={handleBackToHome}>
                 <Text style={styles.text}>Voltar</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, styles.buttonTake]} onPress={takePicture}>
+                <Text style={styles.text}>Take a picture</Text>
+              </TouchableOpacity>
             </View>
-          </CameraView>
+          
         </View>
       )}
+
+      {
+        capturedPhoto && (
+          <Modal 
+            animationType='fade'
+            transparent={false}
+            visible={open}
+          >
+
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', margin: 20}}>
+
+              <TouchableOpacity onPress={()=>setOpen(false)} style={styles.backButton}>
+                <Text>Fechar</Text>
+              </TouchableOpacity>
+
+              <Image style={{width: '100%', height: 300}} source={{uri: capturedPhoto}} />
+
+            </View>
+
+          </Modal>
+        )
+      }
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 2,
+    zIndex: 2
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  containerPhoto: {
+    width: '85%',
+    height: '60%',
+    borderColor: 'blue',
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 255, 0.1)',
+    
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -89,10 +159,13 @@ const styles = StyleSheet.create({
   },
   cameraContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     width: '100%',
   },
   camera: {
-    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -105,5 +178,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     backgroundColor: '#e74c3c', // Cor de fundo vermelha para botão de voltar
+  },
+  buttonTake:{
+    backgroundColor: '#04bd6c',
   },
 });
